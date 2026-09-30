@@ -28,7 +28,7 @@
     </div>
     <div class="grid">
       ${U.card('sum-employment','Empleo en construcción y ocupación total',`ENOE · millones de personas · trimestral · hasta ${fmtQuarter(enoeLast.period)}`,`<strong>Qué mide:</strong> compara la población ocupada en construcción (eje izquierdo) con la población ocupada total del país (eje derecho). <div class="note">Ambas series son observaciones trimestrales ENOE; no se mensualizan ni se interpolan.</div>`)}
-      ${U.card('sum-shf','Precios de vivienda y costos de construcción','Variación anual (%) · SHF trimestral e ICC residencial mensual','<strong>Qué mide:</strong> compara la variación anual del Índice SHF de Precios de la Vivienda con el ICC residencial. <div class="note">El Índice SHF se publica trimestralmente; los puntos trimestrales se muestran sin replicar valores mensuales. El ICC conserva su frecuencia mensual.</div>')}
+      ${U.card('sum-shf','Precios de vivienda y costos de construcción','Variación anual (%) · SHF trimestral expandido a meses e ICC residencial mensual','<strong>Qué mide:</strong> compara la variación anual del Índice SHF de Precios de la Vivienda con el ICC residencial. <div class="note">Para hacer comparables las fechas, el ICC usa el último mes oficial disponible de cada trimestre; no se interpola.</div>')}
     </div>`;
   }
   function activity(){

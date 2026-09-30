@@ -164,18 +164,30 @@
           const m=f.match(/^(\d{4})-(\d{2})/);
           return m ? {...x,period:`${m[1]}-${m[2]}`} : x;
         });
-        // SHF mantiene su frecuencia original trimestral. No se replica a meses
-        // para evitar interpretar que existen observaciones mensuales.
+        // Construye eje mensual completo: no depende únicamente de los meses del ICC.
+        // SHF trimestral se replica en sus tres meses correspondientes.
         const shfMonths=[];
         sumShf.forEach(row=>{
           const m=String(row.period).match(/^(\d{4})-T([1-4])$/);
-          if(m){ shfMonths.push({period:row.period,yoy:row.yoy}); }
+          if(m){
+            const y=Number(m[1]);
+            const q=Number(m[2]);
+            for(let i=1;i<=3;i++){
+              const month=(q-1)*3+i;
+              shfMonths.push({period:`${y}-${String(month).padStart(2,'0')}`,yoy:row.yoy});
+            }
+          }
         });
         // Eje mensual fijo desde enero 2025. La serie ICC se toma directamente de su variación anual mensual oficial.
-        const labels=[...new Set([...shfMonths.map(x=>x.period),...iccMonthly.map(x=>x.period)])].sort();
+        const allPeriods=[...new Set([...shfMonths.map(x=>x.period),...iccMonthly.map(x=>x.period)])].filter(p=>/^2025-\d{2}$|^2026-\d{2}$/.test(p)).sort();
+        const labels=allPeriods;
         const iccMap=new Map(iccMonthly.map(x=>[x.period,Number.isFinite(x.yoy)?x.yoy:null]));
-        const shfMap=new Map(shfMonths.map(x=>[x.period,Number.isFinite(x.yoy)?x.yoy:null]));
-        const shfSeries=ds('SHF · variación anual trimestral',labels.map(period=>shfMap.get(period) ?? null),brand);
+        const shfExpanded=labels.map(period=>{
+          const row=shfMonths.find(x=>x.period===period);
+          return row ? row.yoy : null;
+        });
+        const shfSeries=ds('SHF · variación anual trimestral expandida mensual',shfExpanded,brand);
+        shfSeries.stepped='after';
         shfSeries.tension=0;
         line('sum-shf',labels,[
           shfSeries,
