@@ -1,15 +1,17 @@
 (function(){
   const brand='#c8102e', blue='#315d78', grey='#8b949e', green='#2f7654', gold='#aa7a2b';
+  function formatValue(v,d=1){return Number.isFinite(v)?new Intl.NumberFormat('es-MX',{minimumFractionDigits:d,maximumFractionDigits:d}).format(v):'N/D';}
+  function crossesZero(datasets){const vals=(datasets||[]).flatMap(d=>(d.data||[])).filter(Number.isFinite);return vals.some(v=>v<0)&&vals.some(v=>v>0);}
   function line(id,labels,datasets,opts={}){
     const el=document.getElementById(id); if(!el||!window.Chart)return;
     const old=Chart.getChart?Chart.getChart(el):null; if(old)old.destroy();
-    const singlePoint=(labels||[]).length<=1;
-    new Chart(el,{type:singlePoint?'bar':'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},spanGaps:true,plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:10}}},tooltip:{callbacks:{label:(ctx)=>`${ctx.dataset.label}: ${Number.isFinite(ctx.parsed.y)?ctx.parsed.y.toFixed(opts.decimals??1):'N/D'}${opts.suffix||''}`}}},scales:{x:{grid:{display:false},ticks:{font:{size:9},maxTicksLimit:12},title:{display:!!opts.xTitle,text:opts.xTitle||'',font:{size:10}}},y:{grid:{color:'#eef1f3'},ticks:{font:{size:9}},beginAtZero:!!opts.beginAtZero,min:opts.yMin,max:opts.yMax,title:{display:!!opts.yTitle,text:opts.yTitle||'',font:{size:10}}}}}});
+    const singlePoint=(labels||[]).length<=1, zeroBold=crossesZero(datasets);
+    new Chart(el,{type:singlePoint?'bar':'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},spanGaps:true,plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:10}}},tooltip:{callbacks:{label:(ctx)=>`${ctx.dataset.label}: ${formatValue(ctx.parsed.y,opts.decimals??1)}${opts.suffix||''}`}}},scales:{x:{grid:{display:false},ticks:{font:{size:9},maxTicksLimit:12},title:{display:!!opts.xTitle,text:opts.xTitle||'',font:{size:10}}},y:{grid:{color:(c)=>zeroBold&&c.tick?.value===0?'#69727c':'#eef1f3',lineWidth:(c)=>zeroBold&&c.tick?.value===0?2.5:1},ticks:{font:{size:9}},beginAtZero:!!opts.beginAtZero,min:opts.yMin,max:opts.yMax,title:{display:!!opts.yTitle,text:opts.yTitle||'',font:{size:10}}}}}});
   }
   function bar(id,labels,datasets,opts={}){
     const el=document.getElementById(id); if(!el||!window.Chart)return;
     const old=Chart.getChart?Chart.getChart(el):null; if(old)old.destroy();
-    new Chart(el,{type:'bar',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:10}}},tooltip:{callbacks:{label:(ctx)=>`${ctx.dataset.label}: ${Number.isFinite(ctx.parsed.y)?ctx.parsed.y.toFixed(opts.decimals??1):'N/D'}${opts.suffix||''}`}}},scales:{x:{stacked:!!opts.stacked,grid:{display:false},ticks:{font:{size:9},maxTicksLimit:12}},y:{stacked:!!opts.stacked,grid:{color:'#eef1f3'},ticks:{font:{size:9}},beginAtZero:opts.beginAtZero!==false,title:{display:!!opts.yTitle,text:opts.yTitle||'',font:{size:10}}}}}});
+    new Chart(el,{type:'bar',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:10}}},tooltip:{callbacks:{label:(ctx)=>`${ctx.dataset.label}: ${formatValue(ctx.parsed.y,opts.decimals??1)}${opts.suffix||''}`}}},scales:{x:{stacked:!!opts.stacked,grid:{display:false},ticks:{font:{size:9},maxTicksLimit:12}},y:{stacked:!!opts.stacked,grid:{color:'#eef1f3'},ticks:{font:{size:9}},beginAtZero:opts.beginAtZero!==false,title:{display:!!opts.yTitle,text:opts.yTitle||'',font:{size:10}}}}}});
   }
   function pie(id,labels,data,opts={}){
     const el=document.getElementById(id); if(!el||!window.Chart)return;
@@ -39,6 +41,10 @@
   function sameMonth(rows,key){
     const m=new Map(rows.map(r=>[r.period,r[key]]));
     return rows.map(r=>{const [y,mo]=r.period.split('-');const prev=m.get(`${Number(y)-1}-${mo}`);const v=r[key];return Number.isFinite(v)&&Number.isFinite(prev)&&prev!==0?(v/prev-1)*100:null;});
+  }
+  function sameQuarter(rows,key){
+    const m=new Map(rows.map(r=>[r.period,r[key]]));
+    return rows.map(r=>{const mt=String(r.period||'').match(/^(\d{4})-T([1-4])$/);if(!mt)return null;const prev=m.get(`${Number(mt[1])-1}-T${mt[2]}`),v=r[key];return Number.isFinite(v)&&Number.isFinite(prev)&&prev!==0?(v/prev-1)*100:null;});
   }
   function biennialPP(years,values){return values.map((v,i)=>{if(i===0)return null;const dy=years[i]-years[i-1];return Number.isFinite(v)&&Number.isFinite(values[i-1])&&dy>0?(v-values[i-1])/dy:null;});}
   function trendCycle(values,window=5){
@@ -164,30 +170,18 @@
           const m=f.match(/^(\d{4})-(\d{2})/);
           return m ? {...x,period:`${m[1]}-${m[2]}`} : x;
         });
-        // Construye eje mensual completo: no depende únicamente de los meses del ICC.
-        // SHF trimestral se replica en sus tres meses correspondientes.
+        // SHF mantiene su frecuencia original trimestral. No se replica a meses
+        // para evitar interpretar que existen observaciones mensuales.
         const shfMonths=[];
         sumShf.forEach(row=>{
           const m=String(row.period).match(/^(\d{4})-T([1-4])$/);
-          if(m){
-            const y=Number(m[1]);
-            const q=Number(m[2]);
-            for(let i=1;i<=3;i++){
-              const month=(q-1)*3+i;
-              shfMonths.push({period:`${y}-${String(month).padStart(2,'0')}`,yoy:row.yoy});
-            }
-          }
+          if(m){ shfMonths.push({period:row.period,yoy:row.yoy}); }
         });
         // Eje mensual fijo desde enero 2025. La serie ICC se toma directamente de su variación anual mensual oficial.
-        const allPeriods=[...new Set([...shfMonths.map(x=>x.period),...iccMonthly.map(x=>x.period)])].filter(p=>/^2025-\d{2}$|^2026-\d{2}$/.test(p)).sort();
-        const labels=allPeriods;
+        const labels=[...new Set([...shfMonths.map(x=>x.period),...iccMonthly.map(x=>x.period)])].sort();
         const iccMap=new Map(iccMonthly.map(x=>[x.period,Number.isFinite(x.yoy)?x.yoy:null]));
-        const shfExpanded=labels.map(period=>{
-          const row=shfMonths.find(x=>x.period===period);
-          return row ? row.yoy : null;
-        });
-        const shfSeries=ds('SHF · variación anual trimestral expandida mensual',shfExpanded,brand);
-        shfSeries.stepped='after';
+        const shfMap=new Map(shfMonths.map(x=>[x.period,Number.isFinite(x.yoy)?x.yoy:null]));
+        const shfSeries=ds('SHF · variación anual trimestral',labels.map(period=>shfMap.get(period) ?? null),brand);
         shfSeries.tension=0;
         line('sum-shf',labels,[
           shfSeries,
@@ -202,7 +196,7 @@
       }
 
       // PIB de vivienda: las visualizaciones viven en Producción de vivienda
-      bar('act-pib',D.activity.years,Object.entries(D.activity.components).map(([label,data],i)=>({label,data,backgroundColor:[brand,blue,grey,gold][i]})),{stacked:true,yTitle:'Millones de pesos corrientes',decimals:0});
+      bar('act-pib',D.activity.years,Object.entries(D.activity.components).map(([label,data],i)=>({label,data:data.map(v=>Number.isFinite(v)?v/1000000:null),backgroundColor:[brand,blue,grey,gold][i]})),{stacked:true,yTitle:'Billones de pesos corrientes',decimals:2});
       line('act-share',D.activity.years,[ds('Participación del PIB de vivienda',D.activity.participation,brand)],{beginAtZero:false,yTitle:'Porcentaje del PIB (%)',suffix:'%',yMin:5,yMax:5.8});
 
       // Actividad económica: respetar periodicidad de publicación
@@ -248,6 +242,7 @@
         const hasSplit=eq.every(x=>Number.isFinite(x.formal)&&Number.isFinite(x.informal));
         if(hasSplit) bar('lab-enoe',eq.map(x=>x.period),[{label:'Formal',data:eq.map(x=>x.formal),backgroundColor:blue},{label:'Informal',data:eq.map(x=>x.informal),backgroundColor:brand}],{stacked:true,yTitle:'Miles de empleos'});
         else bar('lab-enoe',eq.map(x=>x.period),[{label:'Empleos en construcción',data:eq.map(x=>x.total),backgroundColor:brand}],{yTitle:'Miles de empleos'});
+        variationLine('lab-enoe-var',eq.map(x=>x.period),[ds('Variación anual',sameQuarter(eq,'total'),brand)],'Variación anual (%)','%');
       }
       else {const c=document.getElementById('lab-enoe'); if(c&&c.parentElement){c.style.display='none'; const m=document.createElement('div');m.className='note';m.style.padding='28px';m.innerHTML='<strong>Serie trimestral no disponible.</strong> El archivo ENOE no contiene observaciones válidas para mostrar.';c.parentElement.appendChild(m);}}
       const im=D.labor.imss_monthly||[]; if(im.length){const labels=im.map(x=>x.period), sets=[ds('Construcción',im.map(x=>Number.isFinite(x.construction)?x.construction/1000:null),blue)]; if(im.some(x=>x.edification!=null))sets.push(ds('Edificación',im.map(x=>Number.isFinite(x.edification)?x.edification/1000:null),brand)); line('lab-imss',labels,sets,{beginAtZero:false,yTitle:'Millones de trabajadores afiliados',decimals:2}); variationLine('lab-imss-var',labels,sets.length===1?[ds('Variación anual porcentual',sameMonth(im,'construction'),sets[0].borderColor)]:sets.map((z,i)=>ds(z.label,sameMonth(im,i===0?'construction':'edification'),z.borderColor)),'Variación anual porcentual (%)','%');} else {line('lab-imss',D.labor.years,[ds('Trabajadores afiliados IMSS',D.labor.imss.map(x=>x/1000),blue)],{beginAtZero:false,yTitle:'Millones de trabajadores afiliados',decimals:2}); variationLine('lab-imss-var',D.labor.years,[ds('Variación anual porcentual',yoy(D.labor.imss),blue)],'Variación anual porcentual (%)','%');}

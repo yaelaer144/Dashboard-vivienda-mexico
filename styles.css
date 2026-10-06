@@ -63,3 +63,6 @@ button{font:inherit;cursor:pointer}.app{min-height:100vh}.sidebar{position:fixed
 #page-labor .kpis .kpi:nth-child(2) .kpi-value{font-size:38px;line-height:1;font-weight:900;letter-spacing:-.045em}
 #page-labor .kpis .kpi:nth-child(1) .kpi-context,
 #page-labor .kpis .kpi:nth-child(2) .kpi-context{font-size:13px;font-weight:750;line-height:1.25;margin-top:7px}
+
+/* Ajustes 2026-10-06 */
+.chart-source{margin-top:8px;padding-top:8px;border-top:1px dashed #dfe4e8;color:#68727d;font-size:9.8px;line-height:1.4}.chart-source strong{color:#303942}.card:has(#act-share) .chart-wrap{height:430px}
